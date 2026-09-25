@@ -4,8 +4,12 @@ Editor de datos en el navegador, creado el 2026-09-25. Los archivos se procesan 
 
 ## Abrir
 
+Haz doble clic en `index.html` para abrir el editor directamente en tu navegador. Conserva los demás archivos y la carpeta `vendor` junto al HTML. No requiere servidor ni instalación.
+
+Opcionalmente, puedes usar un servidor local:
+
 ```bash
-cd /home/sergio_castro/Proyectos/Metis/tools/excel-local
+cd /home/sergio_castro/Proyectos/excel-local
 python3 serve.py
 ```
 
@@ -27,13 +31,24 @@ Dependencia local: [SheetJS CE 0.20.3](https://docs.sheetjs.com/docs/getting-sta
 - Se volvió a leer el archivo descargado para verificar los cambios y ambas hojas. Capturas en `.test-output/` (ignorado por Git).
 - Correcciones durante la prueba: navegar a una celda elimina correctamente el filtro; doble clic permite renombrar la hoja; cambiar de celda mientras se edita conserva el nuevo foco.
 
-Pruebas reproducibles (con el servidor iniciado):
+Pruebas reproducibles:
 
 ```bash
+node build.mjs --check
 node --test data.test.mjs
 NODE_PATH=/home/sergio_castro/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules node browser.test.cjs
 ```
 
-La prueba de navegador usa el Playwright incluido en el entorno y Chromium del sistema. `CHROMIUM_PATH` permite especificar otro ejecutable. El runtime de la página no depende de ellos.
+La prueba de navegador abre `index.html` mediante `file://` por defecto. Con el servidor iniciado, también se prueba HTTP añadiendo `APP_URL=http://127.0.0.1:8766/` al comando. Usa el Playwright incluido en el entorno y Chromium del sistema. `CHROMIUM_PATH` permite especificar otro ejecutable. El runtime de la página no depende de ellos.
 
-Reversión: eliminar únicamente `tools/excel-local/` y detener su servidor. No modifica otros proyectos ni servicios.
+## Apertura directa (2026-09-25)
+
+El navegador bloqueaba `app.mjs` desde `file://` por CORS. `index.html` ahora carga `app.bundle.js` como script clásico local, después de SheetJS. La política de seguridad del navegador se conserva. El enlace del logotipo vuelve a `index.html` en ambos modos.
+
+El bundle se incluye en el repositorio: los usuarios no necesitan compilarlo. Al modificar `app.mjs` o `data.mjs`, ejecutar `node build.mjs` y guardar también el bundle generado. `node build.mjs --check` detecta un bundle desactualizado.
+
+Verificación del cambio: `node build.mjs --check` pasa; las 7 pruebas del modelo pasan; la prueba completa de Chromium pasa tanto en `file://` como en HTTP (servidor temporal en el puerto 8767), sin errores de JavaScript, CORS ni carga de recursos. Se verificaron importación, edición y descarga de XLSX en ambos modos.
+
+Reversión de este ajuste: restaurar `index.html`, `browser.test.cjs`, `.gitignore` y esta documentación; retirar `build.mjs` y `app.bundle.js`. Los módulos originales no cambian.
+
+Reversión de la herramienta completa: eliminar únicamente su carpeta y detener su servidor, si se inició. No modifica otros proyectos ni servicios.

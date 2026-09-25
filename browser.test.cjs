@@ -2,6 +2,7 @@ const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const XLSX = require('./vendor/xlsx.full.min.js');
 
 (async () => {
@@ -10,14 +11,20 @@ const XLSX = require('./vendor/xlsx.full.min.js');
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 960 }, acceptDownloads: true });
     const errors = []; page.on('pageerror', e => errors.push(e.message));
+    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+    page.on('requestfailed', request => errors.push(`${request.url()}: ${request.failure()?.errorText}`));
     page.on('dialog', dialog => dialog.accept(dialog.type() === 'prompt' ? 'Notas' : undefined));
     const cell = a => page.locator(`[data-address="${a}"]`);
     const paste = async text => page.evaluate(text => {
       const data = new DataTransfer(); data.setData('text/plain', text);
       document.getElementById('grid').dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
     }, text);
-    await page.goto('http://127.0.0.1:8766');
+    const appURL = process.env.APP_URL || pathToFileURL(path.join(__dirname, 'index.html')).href;
+    await page.goto(appURL);
     await page.waitForFunction(() => !!window.XLSX);
+    await page.locator('#help-button').click(); assert.equal(await page.locator('#help-dialog').isVisible(), true);
+    await page.locator('#close-help').click();
+    await page.locator('.brand').click(); assert.ok(page.url().endsWith('/index.html'));
     await page.screenshot({ path: path.join(out, 'welcome.png') });
     await page.locator('#new-welcome').click();
     await cell('A1').click();
@@ -61,6 +68,6 @@ const XLSX = require('./vendor/xlsx.full.min.js');
     await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: path.join(out, 'mobile.png') });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.deepEqual(errors, []);
-    console.log('PASS: create, paste, edit, undo/redo, sort, filter, sheets, safe text, XLSX download, file import, formula retention, pagination, cell navigation, mobile layout; no browser errors.');
+    console.log(`PASS (${new URL(appURL).protocol}): create, paste, edit, undo/redo, sort, filter, sheets, safe text, XLSX download, file import, formula retention, pagination, cell navigation, mobile layout, help, home link; no browser or resource errors.`);
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });
