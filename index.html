@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#15624d">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'">
+  <title>Hoja · Excel en tu navegador</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="vendor/xlsx.full.min.js"></script>
+  <script type="module" src="app.mjs"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Hoja, inicio"><img src="icon.svg" alt="" width="32" height="32"><span>hoja<span class="brand-dot">.</span></span></a>
+    <span class="tagline">Tu Excel, a mano.</span>
+    <div class="privacy"><span class="status-dot"></span> Solo en tu navegador</div>
+    <button id="help-button" class="icon-button" title="Ayuda y atajos" aria-label="Ayuda y atajos">?</button>
+  </header>
+
+  <main>
+    <section id="welcome" class="welcome">
+      <div class="welcome-copy"><span class="intro-label">Un espacio para tus datos</span><h1>Abre. Edita.<br>Sigue con tu día.</h1><p>Haz ese cambio rápido en tu Excel.<br>Sin cuentas, sin subir tus archivos.</p><button id="new-welcome" class="text-button">Crear una hoja en blanco <span aria-hidden="true">↗</span></button></div>
+      <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Abrir o arrastrar un archivo Excel o CSV">
+        <div class="file-art" aria-hidden="true"><span class="file-fold"></span><span class="file-grid">▦</span><span class="file-type">XLSX</span></div>
+        <h2>Tu archivo va aquí</h2><p>Arrástralo o elige uno de tu equipo</p><span class="button primary">Abrir archivo <span aria-hidden="true">↑</span></span><small>.xlsx, .xls, .csv &nbsp; · &nbsp; Hasta 20 MB</small>
+      </div>
+      <div class="welcome-foot"><span>01 <b>Edita directamente</b><small>Como en una hoja de cálculo.</small></span><span>02 <b>Ordena y encuentra</b><small>Ve directo a lo que necesitas.</small></span><span>03 <b>Descarga tu copia</b><small>Tu archivo original queda intacto.</small></span></div>
+      <p class="scope-note">Editor de datos: no conserva gráficos, macros ni estilos avanzados. Las fórmulas se recalculan en Excel.</p>
+    </section>
+
+    <section id="editor" class="editor" hidden aria-label="Editor de hoja de cálculo">
+      <div class="document-bar">
+        <div class="document-title"><span class="document-icon" aria-hidden="true">▦</span><div><label class="sr-only" for="filename">Nombre del archivo</label><input id="filename" value="Sin título" maxlength="100"><div id="save-status" class="save-status">Listo para editar</div></div></div>
+        <div class="document-actions"><button id="new-button">Nuevo</button><button id="open-button">Abrir archivo</button><button id="export-csv" title="Descarga solo la hoja activa">CSV ↓</button><button id="export-xlsx" class="primary">Descargar Excel ↓</button></div>
+      </div>
+      <div class="toolbar">
+        <div class="tool-group"><button id="undo" class="icon-button" title="Deshacer (Ctrl+Z)" aria-label="Deshacer">↶</button><button id="redo" class="icon-button" title="Rehacer (Ctrl+Mayús+Z)" aria-label="Rehacer">↷</button></div>
+        <div class="tool-group"><button id="add-row">+ Fila</button><button id="add-column">+ Columna</button><button id="clear-cell" title="Vaciar la celda seleccionada">Borrar celda</button></div>
+        <div class="tool-group"><button id="sort-asc" title="Ordenar por la columna seleccionada">A→Z</button><button id="sort-desc" title="Ordenar por la columna seleccionada">Z→A</button><label class="checkbox-label"><input id="has-header" type="checkbox" checked> Primera fila: títulos</label></div>
+        <label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Filtrar filas…" aria-label="Filtrar filas de la hoja"></label>
+      </div>
+      <div class="formula-bar"><label class="sr-only" for="cell-address">Ir a celda</label><input id="cell-address" value="A1" title="Escribe una referencia, por ejemplo B12"><span class="fx" aria-hidden="true">ƒx</span><label class="sr-only" for="cell-value">Valor o fórmula de la celda</label><input id="cell-value" placeholder="Selecciona una celda y escribe…"><span id="cell-type" class="cell-type">Vacía</span></div>
+      <div id="grid-wrap" class="grid-wrap"><table id="grid" aria-label="Celdas de la hoja"></table><div id="no-results" class="no-results" hidden>No hay filas que coincidan. Prueba otra búsqueda.</div></div>
+      <div class="sheet-bar"><div id="sheet-tabs" class="sheet-tabs" role="tablist" aria-label="Hojas del libro"></div><button id="add-sheet" class="add-sheet" title="Añadir hoja" aria-label="Añadir hoja">+</button><div class="pagination"><button id="previous-page" aria-label="Página anterior">‹</button><span id="page-label"></span><button id="next-page" aria-label="Página siguiente">›</button></div></div>
+      <footer class="editor-footer"><span id="dimensions"></span><span id="selection-info"></span><span>Fórmulas: cálculo en Excel <span class="status-dot"></span></span></footer>
+      <p class="editor-hint">Doble clic para editar · Pega tablas con Ctrl+V · Descarga para conservar tus cambios</p>
+    </section>
+  </main>
+  <input id="file-input" type="file" accept=".xlsx,.xls,.csv" hidden>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+  <div id="busy" class="busy" hidden role="status"><div><span class="spinner"></span><p>Abriendo tu archivo…</p></div></div>
+  <dialog id="help-dialog"><div class="dialog-heading"><h2>Un poco de ayuda</h2><button id="close-help" class="icon-button" aria-label="Cerrar ayuda">×</button></div><p>Haz doble clic en una celda o escribe en la barra superior. Pulsa Enter para guardar el cambio y Escape para cancelarlo.</p><dl><dt>Tab / Enter / flechas</dt><dd>Moverte entre celdas</dd><dt>Ctrl+C / Ctrl+V</dt><dd>Copiar una celda / pegar una tabla</dd><dt>Ctrl+Z / Ctrl+Mayús+Z</dt><dd>Deshacer / rehacer</dd><dt>Ctrl+S</dt><dd>Descargar Excel</dd><dt>A1, B12…</dt><dd>Ir a una celda con el campo de referencia</dd><dt>Doble clic en la pestaña</dt><dd>Renombrar una hoja</dd></dl><p>Usa punto decimal para introducir números (1234.56). Para mantener ceros iniciales o forzar texto, empieza con un apóstrofo: <code>'00123</code>. Se conservan los tipos del archivo importado.</p><p class="notice">Este editor trabaja con datos. Gráficos, macros, estilos avanzados y combinaciones de celdas no se conservan. Las fórmulas se muestran como texto editable y se guardan para calcularse en Excel. No hay guardado automático: descarga antes de cerrar.</p></dialog>
+</body>
+</html>

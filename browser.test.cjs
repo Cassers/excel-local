@@ -1,0 +1,66 @@
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const XLSX = require('./vendor/xlsx.full.min.js');
+
+(async () => {
+  const out = path.join(__dirname, '.test-output'); fs.mkdirSync(out, { recursive: true });
+  const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium' });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 960 }, acceptDownloads: true });
+    const errors = []; page.on('pageerror', e => errors.push(e.message));
+    page.on('dialog', dialog => dialog.accept(dialog.type() === 'prompt' ? 'Notas' : undefined));
+    const cell = a => page.locator(`[data-address="${a}"]`);
+    const paste = async text => page.evaluate(text => {
+      const data = new DataTransfer(); data.setData('text/plain', text);
+      document.getElementById('grid').dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    }, text);
+    await page.goto('http://127.0.0.1:8766');
+    await page.waitForFunction(() => !!window.XLSX);
+    await page.screenshot({ path: path.join(out, 'welcome.png') });
+    await page.locator('#new-welcome').click();
+    await cell('A1').click();
+    await paste('Producto\tCantidad\tPrecio\nCafé\t12\t18.5\nTé\t3\t10\nCacao\t8\t25');
+    assert.equal(await cell('A2').textContent(), 'Café');
+    await cell('B2').dblclick(); await page.keyboard.press('Control+a'); await page.keyboard.type('20'); await page.keyboard.press('Enter');
+    assert.equal(await cell('B2').textContent(), '20');
+    await page.locator('#undo').click(); assert.equal(await cell('B2').textContent(), '12');
+    await page.locator('#redo').click(); assert.equal(await cell('B2').textContent(), '20');
+    await cell('B1').click(); await page.locator('#sort-asc').click();
+    assert.equal(await cell('A2').textContent(), 'Té'); assert.equal(await cell('B2').textContent(), '3');
+    await page.locator('#search').fill('Cacao'); await page.waitForTimeout(250);
+    assert.equal(await page.locator('#grid tbody tr').count(), 1);
+    await page.locator('#cell-address').fill('A2'); await page.locator('#cell-address').press('Enter');
+    assert.equal(await cell('A2').textContent(), 'Té'); assert.equal(await page.locator('#grid tbody tr').count(), 30);
+    await page.locator('#add-sheet').click(); assert.equal(await page.locator('[role=tab]').count(), 2);
+    await page.locator('[role=tab]').last().dblclick(); assert.equal(await page.locator('[role=tab]').last().textContent(), 'Notas');
+    await cell('A1').click(); await paste('<img src=x onerror=alert(1)>\t00123');
+    assert.equal(await page.locator('#grid img').count(), 0);
+    await page.locator('[role=tab]').first().click();
+    await page.locator('#filename').fill('Inventario de prueba'); await page.locator('#filename').blur();
+    await page.screenshot({ path: path.join(out, 'editor.png') });
+    const downloadPromise = page.waitForEvent('download'); await page.locator('#export-xlsx').click(); const download = await downloadPromise;
+    const target = path.join(out, download.suggestedFilename()); await download.saveAs(target);
+    const exported = XLSX.read(fs.readFileSync(target)); assert.equal(exported.Sheets['Hoja 1'].B4.v, 20); assert.equal(exported.Sheets.Notas.B1.v, '00123');
+    // Real file upload, formulas, multi-sheet retention and pagination.
+    const fixture = XLSX.utils.book_new();
+    const fixtureRows = Array.from({ length: 225 }, (_, i) => [i, `Fila ${i}`, i * 2]);
+    const ws = XLSX.utils.aoa_to_sheet(fixtureRows); ws.D1 = { t: 'n', f: 'A1+C1', v: 0 }; ws['!ref'] = 'A1:D225';
+    XLSX.utils.book_append_sheet(fixture, ws, 'Origen'); XLSX.utils.book_append_sheet(fixture, XLSX.utils.aoa_to_sheet([['Otra hoja']]), 'Segunda');
+    const fixturePath = path.join(out, 'fixture.xlsx'); fs.writeFileSync(fixturePath, XLSX.write(fixture, { type: 'buffer', bookType: 'xlsx' }));
+    await page.locator('#file-input').setInputFiles(fixturePath); await page.waitForFunction(() => document.querySelector('[role=tab]')?.textContent === 'Origen');
+    assert.equal(await cell('D1').textContent(), '=A1+C1');
+    await page.locator('#next-page').click(); assert.equal(await cell('B101').textContent(), 'Fila 100');
+    await page.locator('#cell-address').fill('B225'); await page.locator('#cell-address').press('Enter'); assert.equal(await cell('B225').textContent(), 'Fila 224');
+    await page.locator('#cell-value').fill('Editado'); await page.locator('#cell-value').press('Enter'); assert.equal(await cell('B225').textContent(), 'Editado');
+    await page.locator('#sort-asc').click(); assert.match(await page.locator('#toast').textContent(), /fórmulas/);
+    const roundtripPromise = page.waitForEvent('download'); await page.locator('#export-xlsx').click(); const roundtrip = await roundtripPromise;
+    const roundtripPath = path.join(out, 'roundtrip.xlsx'); await roundtrip.saveAs(roundtripPath); const checked = XLSX.read(fs.readFileSync(roundtripPath));
+    assert.equal(checked.Sheets.Origen.B225.v, 'Editado'); assert.equal(checked.Sheets.Origen.D1.f, 'A1+C1'); assert.equal(checked.Sheets.Segunda.A1.v, 'Otra hoja');
+    await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: path.join(out, 'mobile.png') });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []);
+    console.log('PASS: create, paste, edit, undo/redo, sort, filter, sheets, safe text, XLSX download, file import, formula retention, pagination, cell navigation, mobile layout; no browser errors.');
+  } finally { await browser.close(); }
+})().catch(e => { console.error(e); process.exitCode = 1; });
