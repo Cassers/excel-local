@@ -4,18 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#15624d">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'">
   <title>Hoja · Excel en tu navegador</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
   <script defer src="vendor/xlsx.full.min.js"></script>
   <script defer src="app.bundle.js"></script>
+  <script defer src="large.js"></script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="index.html" aria-label="Hoja, inicio"><img src="icon.svg" alt="" width="32" height="32"><span>hoja<span class="brand-dot">.</span></span></a>
     <span class="tagline">Tu Excel, a mano.</span>
-    <div class="privacy"><span class="status-dot"></span> Solo en tu navegador</div>
+    <div class="privacy"><span class="status-dot"></span> Solo en tu equipo</div>
+    <button id="large-button">Archivos grandes</button>
     <button id="help-button" class="icon-button" title="Ayuda y atajos" aria-label="Ayuda y atajos">?</button>
   </header>
 
@@ -24,10 +26,10 @@
       <div class="welcome-copy"><span class="intro-label">Un espacio para tus datos</span><h1>Abre. Edita.<br>Sigue con tu día.</h1><p>Haz ese cambio rápido en tu Excel.<br>Sin cuentas, sin subir tus archivos.</p><button id="new-welcome" class="text-button">Crear una hoja en blanco <span aria-hidden="true">↗</span></button></div>
       <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Abrir o arrastrar un archivo Excel o CSV">
         <div class="file-art" aria-hidden="true"><span class="file-fold"></span><span class="file-grid">▦</span><span class="file-type">XLSX</span></div>
-        <h2>Tu archivo va aquí</h2><p>Arrástralo o elige uno de tu equipo</p><span class="button primary">Abrir archivo <span aria-hidden="true">↑</span></span><small>.xlsx, .xls, .csv &nbsp; · &nbsp; Hasta 20 MB</small>
+        <h2>Tu archivo va aquí</h2><p>Arrástralo o elige uno de tu equipo</p><span class="button primary">Abrir archivo <span aria-hidden="true">↑</span></span><small>Archivos .xlsx, .xls y .csv</small>
       </div>
       <div class="welcome-foot"><span>01 <b>Edita directamente</b><small>Como en una hoja de cálculo.</small></span><span>02 <b>Ordena y encuentra</b><small>Ve directo a lo que necesitas.</small></span><span>03 <b>Descarga tu copia</b><small>Tu archivo original queda intacto.</small></span></div>
-      <p class="scope-note">Editor de datos: no conserva gráficos, macros ni estilos avanzados. Las fórmulas se recalculan en Excel.</p>
+      <p class="scope-note">Más de 20 MB: usa «Archivos grandes» con el servicio local. No conserva gráficos, macros ni estilos avanzados.</p>
     </section>
 
     <section id="editor" class="editor" hidden aria-label="Editor de hoja de cálculo">
@@ -47,7 +49,19 @@
       <footer class="editor-footer"><span id="dimensions"></span><span id="selection-info"></span><span>Fórmulas: cálculo en Excel <span class="status-dot"></span></span></footer>
       <p class="editor-hint">Doble clic para editar · Pega tablas con Ctrl+V · Descarga para conservar tus cambios</p>
     </section>
+    <section id="large-editor" class="editor" hidden aria-label="Editor de archivos grandes">
+      <div class="document-bar"><div class="document-title"><span class="document-icon">▦</span><div><strong id="large-name"></strong><div id="large-status" class="save-status">Modo grande · datos temporales en disco</div></div></div><div class="document-actions"><button id="large-close">Cerrar libro</button><button id="large-csv">CSV ↓</button><button id="large-xlsx" class="primary">Descargar Excel ↓</button></div></div>
+      <div class="toolbar"><div class="tool-group"><button id="large-undo" aria-label="Deshacer cambio">↶ Deshacer</button><button id="large-redo">↷ Rehacer</button><button id="large-clear">Borrar celda</button></div><label class="checkbox-label">Hoja <select id="large-sheet" aria-label="Hoja del archivo grande"></select></label><label class="search-box"><span>⌕</span><input id="large-search" type="search" placeholder="Filtrar filas…" aria-label="Filtrar archivo grande"></label></div>
+      <div class="formula-bar"><input id="large-address" value="A1" aria-label="Ir a celda del archivo grande"><span class="fx">ƒx</span><input id="large-value" aria-label="Valor de la celda del archivo grande"><button id="large-save">Aplicar</button></div>
+      <div class="grid-wrap"><table id="large-grid" aria-label="Celdas del archivo grande"></table></div>
+      <div class="sheet-bar"><div class="pagination"><button id="large-col-prev" aria-label="Columnas anteriores">«</button><span id="large-col-label"></span><button id="large-col-next" aria-label="Columnas siguientes">»</button></div><div class="pagination"><button id="large-prev" aria-label="Filas anteriores">‹</button><span id="large-page-label"></span><button id="large-next" aria-label="Filas siguientes">›</button></div></div>
+      <footer class="editor-footer"><span id="large-dimensions"></span><span id="large-message" role="status"></span></footer>
+      <p class="editor-hint">Doble clic o barra superior para editar · Ctrl+V pega tablas · Descarga antes de cerrar · Fórmulas: cálculo en Excel</p>
+    </section>
   </main>
+  <input id="large-file" type="file" accept=".xlsx,.csv" hidden>
+  <div id="large-busy" class="busy" hidden role="status"><div><span class="spinner"></span><p id="large-progress">Procesando…</p><button id="large-cancel">Cancelar</button></div></div>
+  <dialog id="large-help"><div class="dialog-heading"><h2>Archivos grandes</h2><button id="large-help-close" aria-label="Cerrar">×</button></div><p>Para Excel o CSV de 100–500 MB, inicia el servicio local. Los datos se guardan temporalmente en tu disco y el navegador muestra solo una página.</p><p>En la carpeta del proyecto, ejecuta:</p><pre><code>./abrir.sh</code></pre><p>Después abre <a href="http://127.0.0.1:8768/">http://127.0.0.1:8768/</a> y pulsa «Archivos grandes».</p><p>El tamaño posible depende del espacio en disco, la memoria y el contenido. Los XLS antiguos deben convertirse a XLSX. Este modo permite editar, pegar, buscar y exportar; mantiene la estructura de las hojas.</p></dialog>
   <input id="file-input" type="file" accept=".xlsx,.xls,.csv" hidden>
   <div id="toast" role="status" aria-live="polite" hidden></div>
   <div id="busy" class="busy" hidden role="status"><div><span class="spinner"></span><p>Abriendo tu archivo…</p></div></div>

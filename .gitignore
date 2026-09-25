@@ -1,3 +1,6 @@
 .test-output/
 server.log
 .codegraph/
+.venv/
+.local-data/
+__pycache__/

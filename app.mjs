@@ -28,9 +28,11 @@ function mayReplace() { return !dirty || confirm('Hay cambios sin descargar. ¿Q
 function newBook() { finishEdit(); if (mayReplace()) { replaceBook(blankBook()); selectCell(0, 0, true); } }
 async function loadFile(file) {
   if (!file || importing) return;
-  finishEdit(); if (!mayReplace()) return;
+  finishEdit();
   if (!/\.(xlsx|xls|csv)$/i.test(file.name)) return toast('Elige un archivo .xlsx, .xls o .csv.', true);
-  if (file.size > LIMITS.bytes) return toast('El archivo supera los 20 MB.', true);
+  if (file.size > LIMITS.bytes) { $('file-input').value = ''; return window.LargeEditor.open(file); }
+  if (!(await window.LargeEditor.release())) return;
+  if (!mayReplace()) return;
   importing = true; $('busy').hidden = false;
   try {
     await new Promise(resolve => setTimeout(resolve, 40));
@@ -231,6 +233,7 @@ $('previous-page').onclick = () => { finishEdit(); page--; render(); }; $('next-
 $('export-xlsx').onclick = () => download('xlsx'); $('export-csv').onclick = () => download('csv');
 $('help-button').onclick = () => $('help-dialog').showModal(); $('close-help').onclick = () => $('help-dialog').close();
 document.addEventListener('keydown', e => {
+  if ($('editor').hidden) return;
   if (!book || !(e.ctrlKey || e.metaKey)) return;
   if (e.key.toLowerCase() === 's') { e.preventDefault(); document.activeElement?.blur(); download('xlsx'); }
   if (e.target.matches('input, [contenteditable="true"]')) return;
@@ -239,3 +242,5 @@ document.addEventListener('keydown', e => {
 });
 window.addEventListener('beforeunload', e => { if (dirty || editing) { e.preventDefault(); e.returnValue = ''; } });
 if (!globalThis.XLSX) toast('No se cargó el lector Excel. Recarga la página.', true);
+window.HojaData = { parseCell, rawCell, displayCell, parseClipboard, address, column, decode };
+window.HojaSmall = { release: () => { finishEdit(); if (!mayReplace()) return false; dirty = false; return true; } };

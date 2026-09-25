@@ -1,0 +1,45 @@
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const XLSX = require('./vendor/xlsx.full.min.js');
+(async () => {
+  const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 960 }, acceptDownloads: true });
+    const errors = [], dialogs = [];
+    page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+    page.on('dialog', d => { dialogs.push(d.message()); d.accept(); });
+    await page.goto('http://127.0.0.1:8768/');
+    const fixture = path.join(__dirname, '.test-output', 'large-fixture.xlsx');
+    const wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(Array.from({ length: 240 }, (_, i) => [`Fila ${i + 1}`, i, '00123']));
+    ws.D1 = { t: 'n', f: 'B1*2' }; ws.AD240 = { t: 's', v: 'Última columna' }; ws['!ref'] = 'A1:AD240';
+    XLSX.utils.book_append_sheet(wb, ws, 'Datos'); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Otra hoja']]), 'Segunda');
+    fs.writeFileSync(fixture, XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
+    await page.locator('#large-file').setInputFiles(fixture);
+    await page.locator('#large-editor').waitFor({ state: 'visible', timeout: 30000 });
+    await page.locator('#large-busy').waitFor({ state: 'hidden' });
+    const cell = ref => page.locator(`[data-large-cell="${ref}"]`);
+    assert.equal(await cell('C1').textContent(), '00123'); assert.equal(await cell('D1').textContent(), '=B1*2');
+    await cell('B2').click(); await page.locator('#large-value').fill('42'); await page.locator('#large-save').click();
+    await page.waitForFunction(() => document.querySelector('[data-large-cell="B2"]')?.textContent === '42');
+    await page.locator('#large-undo').click(); await page.waitForFunction(() => document.querySelector('[data-large-cell="B2"]')?.textContent === '1');
+    await page.locator('#large-redo').click(); await page.waitForFunction(() => document.querySelector('[data-large-cell="B2"]')?.textContent === '42');
+    await page.locator('#large-search').fill('Fila 238'); await page.waitForFunction(() => document.querySelectorAll('#large-grid tbody tr').length === 1);
+    assert.equal(await cell('A238').textContent(), 'Fila 238');
+    await page.locator('#large-address').fill('AD240'); await page.locator('#large-address').press('Enter');
+    await cell('AD240').waitFor(); assert.equal(await cell('AD240').textContent(), 'Última columna');
+    await page.screenshot({ path: path.join(__dirname, '.test-output/large-editor.png') });
+    const downloading = page.waitForEvent('download'); await page.locator('#large-xlsx').click(); const download = await downloading;
+    const file = path.join(__dirname, '.test-output/large-roundtrip.xlsx'); await download.saveAs(file);
+    const checked = XLSX.read(fs.readFileSync(file), { sheetStubs: true }); assert.equal(checked.Sheets.Datos.B2.v, 42); assert.equal(checked.Sheets.Datos.D1.f, 'B1*2'); assert.equal(checked.Sheets.Segunda.A1.v, 'Otra hoja');
+    await page.locator('#large-close').click(); await page.locator('#large-editor').waitFor({ state: 'hidden' });
+    const origin = 'http://127.0.0.1:8768'; const health = await (await page.request.get(origin + '/api/health')).json();
+    assert.equal((await page.request.post(origin + '/api/edit', { data: {} })).status(), 403);
+    assert.equal((await page.request.get(origin + '/api/health', { headers: { Origin: 'https://example.com' } })).status(), 403);
+    assert.equal((await page.request.get(origin + '/.local-data/')).status(), 404);
+    assert.equal((await page.request.get(origin + '/.git/config')).status(), 404);
+    assert.ok(health.large); assert.deepEqual(errors, []); assert.deepEqual(dialogs, []);
+    console.log('PASS: large-file UI import, edit, undo, redo, filter, column/row navigation, export round trip, cleanup, API authorization and private paths.');
+  } finally { await browser.close(); }
+})().catch(e => { console.error(e); process.exitCode = 1; });
